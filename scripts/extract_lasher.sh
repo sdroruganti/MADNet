@@ -4,7 +4,7 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PARTS_DIR="$REPO_ROOT/data_sources"
-OUT_DIR="${1:-$REPO_ROOT/data_sources/lasher}"
+OUT_DIR="${1:-$REPO_ROOT/data_sources}"
 
 mkdir -p "$OUT_DIR"
 
