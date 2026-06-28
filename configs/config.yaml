@@ -5,6 +5,10 @@ model:
   resolution:
     width: 640
     height: 480
+  bounds:
+    x: [-100, 100]
+    y: [-100, 100]
+    angle: [-20, 20]
   version: 1
 
 data:
