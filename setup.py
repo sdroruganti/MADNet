@@ -15,6 +15,7 @@ setup(
         "PyYAML>=6.0",
         "torch>=2.12",
         "torchvision>=0.27",
+        "opencv-python>=4.13",
     ],
 )
 
