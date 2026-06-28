@@ -1,2 +1,2 @@
 # MADNet
-MAD: Multimodal Alignment via Dense Correspondence
+Multimodal Alignment via Dense Correspondence
