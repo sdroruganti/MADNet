@@ -40,6 +40,7 @@ class ImagePairTransformer:
         self.allowed_resolutions = allowed_resolutions or []
         self.visible = self._load_image(visible)
         self.infrared = self._load_image(infrared)
+        self.is_valid = self.visible is not None and self.infrared is not None
 
     def _resolve_path(self, path):
         path = Path(path)
@@ -54,7 +55,7 @@ class ImagePairTransformer:
         if image is None:
             raise FileNotFoundError(f"Could not load image: {path}")
         if self.allowed_resolutions and image.shape[:2] not in self.allowed_resolutions:
-            raise AssertionError(f"Invalid image resolution {image.shape[:2]}")
+            return None
         return image
 
     @staticmethod
@@ -187,6 +188,8 @@ def generate_record(args):
         pair["infrared"],
         **transformer_config,
     )
+    if not transformer.is_valid:
+        return None
 
     visible_transform = make_transform(visible_generation, x_bounds, y_bounds)
     infrared_transform = make_transform(infrared_generation, x_bounds, y_bounds)
@@ -221,13 +224,14 @@ def generate_split(
     ]
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        return list(
+        records = list(
             tqdm(
                 executor.map(generate_record, tasks),
                 total=len(tasks),
                 desc=f"Generating {split}",
             )
         )
+    return [record for record in records if record is not None]
 
 
 def main():
