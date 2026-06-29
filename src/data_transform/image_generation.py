@@ -1,10 +1,16 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from random import randint
+from tqdm import tqdm
 
 import cv2
+import json
 import numpy as np
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+CONFIG_PATH = REPO_ROOT / "configs" / "config.yaml"
 
 
 class Transform:
@@ -24,12 +30,14 @@ class ImagePairTransformer:
         target_width=640,
         canvas_height=960,
         canvas_width=1280,
+        allowed_resolutions=None,
     ):
         self.root = root
         self.target_height = target_height
         self.target_width = target_width
         self.canvas_height = canvas_height
         self.canvas_width = canvas_width
+        self.allowed_resolutions = allowed_resolutions or []
         self.visible = self._load_image(visible)
         self.infrared = self._load_image(infrared)
 
@@ -45,6 +53,8 @@ class ImagePairTransformer:
         image = cv2.imread(str(path), cv2.IMREAD_COLOR)
         if image is None:
             raise FileNotFoundError(f"Could not load image: {path}")
+        if self.allowed_resolutions and image.shape[:2] not in self.allowed_resolutions:
+            raise AssertionError(f"Invalid image resolution {image.shape[:2]}")
         return image
 
     @staticmethod
@@ -55,11 +65,13 @@ class ImagePairTransformer:
     def center_crop(image, height, width):
         image_height, image_width = image.shape[:2]
         if height > image_height or width > image_width:
-            raise ValueError(f"Crop {(height, width)} is larger than image {(image_height, image_width)}")
+            raise ValueError(
+                f"Crop {(height, width)} is larger than image {(image_height, image_width)}"
+            )
 
         y1 = (image_height - height) // 2
         x1 = (image_width - width) // 2
-        return image[y1:y1 + height, x1:x1 + width]
+        return image[y1 : y1 + height, x1 : x1 + width]
 
     @staticmethod
     def affine_transform(image, transform):
@@ -126,30 +138,133 @@ class ImagePairTransformer:
     def save_pair(images, visible_path, infrared_path):
         return {
             "visible": ImagePairTransformer.save_image(images["visible"], visible_path),
-            "infrared": ImagePairTransformer.save_image(images["infrared"], infrared_path),
+            "infrared": ImagePairTransformer.save_image(
+                images["infrared"], infrared_path
+            ),
         }
 
 
-def main():
+def load_jsonl(path):
+    rows = []
+    with open(path, "r", encoding="utf-8") as file:
+        for line in file:
+            rows.append(json.loads(line))
+    return rows
+
+
+def write_jsonl(path, rows):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as file:
+        for row in rows:
+            file.write(json.dumps(row) + "\n")
+
+
+def make_transform(enabled, x_bounds, y_bounds):
+    if not enabled:
+        return Transform()
+    return Transform(dx=randint(*x_bounds), dy=randint(*y_bounds))
+
+
+def transform_record(path, transform):
+    return {
+        "path": str(path),
+        "dx": transform.dx,
+        "dy": transform.dy,
+        "angle": transform.angle,
+    }
+
+
+def generate_record(args):
+    index, pair, split, generation_config, transformer_config = args
+    x_bounds = generation_config["bounds"]["x"]
+    y_bounds = generation_config["bounds"]["y"]
+    visible_generation = generation_config["moving_modality"]["visible"]
+    infrared_generation = generation_config["moving_modality"]["infrared"]
+
     transformer = ImagePairTransformer(
-        "data_sources/lasher/testingset/boywalkinginsnow2/visible/000000.jpg",
-        "data_sources/lasher/testingset/boywalkinginsnow2/infrared/000000.jpg",
+        pair["visible"],
+        pair["infrared"],
+        **transformer_config,
     )
+
+    visible_transform = make_transform(visible_generation, x_bounds, y_bounds)
+    infrared_transform = make_transform(infrared_generation, x_bounds, y_bounds)
 
     transformed = transformer.transform_pair(
-        visible=Transform(dx=-3, dy=-10),
-        infrared=Transform(dx=5, dy=4),
+        visible=visible_transform,
+        infrared=infrared_transform,
     )
-
-    print("visible:", transformed["visible"].shape)
-    print("infrared:", transformed["infrared"].shape)
 
     saved_paths = transformer.save_pair(
         transformed,
-        "outputs/transformed_pair/visible_shifted.jpg",
-        "outputs/transformed_pair/infrared_shifted.jpg",
+        REPO_ROOT / f"data_sources/lasher_synthetic/{split}/visible/image_{index}.jpg",
+        REPO_ROOT / f"data_sources/lasher_synthetic/{split}/infrared/image_{index}.jpg",
     )
-    print("saved:", saved_paths)
+
+    return {
+        "visible": transform_record(saved_paths["visible"], visible_transform),
+        "infrared": transform_record(saved_paths["infrared"], infrared_transform),
+    }
+
+
+def generate_split(
+    images,
+    split,
+    generation_config,
+    transformer_config,
+    max_workers=None,
+):
+    tasks = [
+        (index, pair, split, generation_config, transformer_config)
+        for index, pair in enumerate(images)
+    ]
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        return list(
+            tqdm(
+                executor.map(generate_record, tasks),
+                total=len(tasks),
+                desc=f"Generating {split}",
+            )
+        )
+
+
+def main():
+    with open(CONFIG_PATH, "r", encoding="utf-8") as file:
+        config = yaml.safe_load(file)
+
+    generation_config = config["model"]["synthetic_generation"]
+    transformer_config = {
+        "allowed_resolutions": [tuple(item) for item in config["data"]["allowed_resolutions"]],
+        "target_height": config["model"]["resolution"]["height"],
+        "target_width": config["model"]["resolution"]["width"],
+        "canvas_height": generation_config["canvas"]["height"],
+        "canvas_width": generation_config["canvas"]["width"],
+    }
+
+    train_images = load_jsonl(REPO_ROOT / config["data"]["manifest"]["train"])
+    test_images = load_jsonl(REPO_ROOT / config["data"]["manifest"]["test"])
+
+    max_workers = config.get("system", {}).get("workers")
+
+    train_transforms = generate_split(
+        train_images,
+        "train",
+        generation_config,
+        transformer_config,
+        max_workers=max_workers,
+    )
+    test_transforms = generate_split(
+        test_images,
+        "test",
+        generation_config,
+        transformer_config,
+        max_workers=max_workers,
+    )
+
+    write_jsonl(REPO_ROOT / "manifests" / "lasher_synthetic_train.jsonl", train_transforms)
+    write_jsonl(REPO_ROOT / "manifests" / "lasher_synthetic_test.jsonl", test_transforms)
 
 
 if __name__ == "__main__":

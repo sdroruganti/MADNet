@@ -1,20 +1,40 @@
 ---
+system:
+  workers: 72
+
 model:
   name: madnet
   save_location: src/madnet/models
   resolution:
-    width: 640
-    height: 480
-  bounds:
-    x: [-100, 100]
-    y: [-100, 100]
-    angle: [-20, 20]
+    width: 960
+    height: 576
+  target_normalization:
+    x: 96
+    y: 58
+    angle: 10
+  synthetic_generation:
+    method: oversized_canvas_affine_crop
+    canvas:
+      width: 1920
+      height: 1152
+    moving_modality: 
+      infrared: True
+      visible: False
+    bounds:
+      x: [-96, 96]
+      y: [-58, 58]
+      angle: [-10, 10]
   version: 1
 
 data:
   root: data_sources/lasher
   train: data_sources/lasher/trainingset
   test: data_sources/lasher/testingset
+  manifest:
+    test: manifests/lasher_test.jsonl
+    train: manifests/lasher_train.jsonl
+  allowed_resolutions:
+    - [576, 960]
 
 testing_set:
   - 10runone
