@@ -1,2 +1,2 @@
 # MADNet
-Multimodal Alignment via Dense Correspondence
+Multimodal Affine Displacement Network
