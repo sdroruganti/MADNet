@@ -3,7 +3,12 @@ system:
   workers: 72
 
 model:
-  name: madnet
+  name: madnet_v1_5_coarse_to_fine
+  model_name: madnet_v1_5_coarse_to_fine
+  task_version: v1_5_coarse_to_fine
+  pool_size: 8
+  base_channels: 24
+  dropout: 0.0
   save_location: src/madnet/models
   resolution:
     width: 960
@@ -24,7 +29,7 @@ model:
       x: [-96, 96]
       y: [-58, 58]
       angle: [-10, 10]
-  version: 1
+  version: 1.5
 
 data:
   root: data_sources/lasher
@@ -1263,4 +1268,3 @@ training_set:
   - whiteboy`head
   - whitehatgirl`sheadleftwhiteumbrella
   - whiteshoesleftbottle-gai
-

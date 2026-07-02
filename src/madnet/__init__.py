@@ -1,3 +1,31 @@
-from .model import MADNetV2Corr, build_model
+from .model import (
+    MADNetV1_2,
+    MADNetV13Lite,
+    MADNetV13LiteCoord,
+    MADNetV13LiteCorrHead,
+    MADNetV13LiteConfidence,
+    MADNetV13Res,
+    MADNetV14BMultiScaleNorm,
+    MADNetV14MultiScale,
+    MADNetV15CoarseToFine,
+    MADNetV2Corr,
+    MADNetV3SoftArgmax,
+    MADNetV4SpatialCorr,
+    build_model,
+)
 
-__all__ = ["MADNetV2Corr", "build_model"]
+__all__ = [
+    "MADNetV1_2",
+    "MADNetV13Lite",
+    "MADNetV13LiteCoord",
+    "MADNetV13LiteCorrHead",
+    "MADNetV13LiteConfidence",
+    "MADNetV13Res",
+    "MADNetV14BMultiScaleNorm",
+    "MADNetV14MultiScale",
+    "MADNetV15CoarseToFine",
+    "MADNetV2Corr",
+    "MADNetV3SoftArgmax",
+    "MADNetV4SpatialCorr",
+    "build_model",
+]
