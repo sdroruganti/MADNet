@@ -206,6 +206,9 @@ tempCodeRunnerFile.py
 # Data sources:
 data_sources/
 
+# Checkpoints
+checkpoints/
+
 # Ruff stuff:
 .ruff_cache/
 
